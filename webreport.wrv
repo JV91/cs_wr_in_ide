@@ -1,0 +1,545 @@
+[LL_WEBREPORT_EXCLUDEHTML /]
+[LL_WEBREPORT_JSLIBS JQUERY /]
+
+[// CONSTANTS
+[// --- SA Volume - libraries
+[LL_REPTAG_'/appimg/PDPIII/tailwind/tailwindcss.js' setvar:'lib_tailwind' /]
+[LL_REPTAG_'/appimg/PDPIII/htmx/htmx.js' setvar:'lib_htmx' /]
+[// -- SA Volume - icons
+[LL_REPTAG_'/appimg/PDPIII/icons/return.png' setvar:'icon_return' /]
+[LL_REPTAG_'/appimg/PDPIII/icons/search.png' setvar:'icon_search' /]
+[LL_REPTAG_'/appimg/PDPIII/icons/edit.png' setvar:'icon_edit' /]
+[LL_REPTAG_'/appimg/PDPIII/icons/send.png' setvar:'icon_send' /]
+[LL_REPTAG_'/appimg/PDPIII/icons/user.png' setvar:'icon_user' /]
+[LL_REPTAG_'/appimg/PDPIII/icons/revoke.png' setvar:'icon_revoke' /]
+[// ---
+
+<script src="[LL_REPTAG_!lib_tailwind /]"></script>
+<script src="[LL_REPTAG_!lib_htmx /]"></script>
+
+<html>
+    <div class="container mx-auto p-4 rounded-lg bg-gray-200">    
+    
+        [// Loading bar triggers when user clicks save button 
+        <div id="loading-overlay" class="hidden fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 z-50">
+            <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                <div class="border-t-4 border-blue-500 rounded-full animate-spin h-20 w-20"></div>
+            </div>
+        </div>
+        
+        [// AllTransmittalsWR
+        [LL_REPTAG_$AllTransmittalsWR LLURL:REPORT SETVAR:allTransmittalsUrl /]
+        [LL_REPTAG_&outboundFolder CONCATVAR:allTransmittalsUrl:'&outboundFolder=' /]
+        [LL_REPTAG_&originFolder CONCATVAR:allTransmittalsUrl:'&originFolder=' /]
+        [LL_REPTAG_&selectedSet CONCATVAR:allTransmittalsUrl:'&selectedSet=' /]
+        
+        [LL_REPTAG_$GetTransmittalSetsForProjectWR RUNSWR:projectDMSID:[LL_REPTAG_&outboundFolder NODEINFO:VOLUMEID /] SHOW SETVAR:setsArray /]
+        
+        [// set redirect url - &originFolderId from new transmittal redirect
+        [LL_WEBREPORT_IF '[LL_REPTAG_&originFolder /]' == "" /]
+            [LL_REPTAG_&originFolderId NODEINFO:PARENTID LLURL:BROWSE SETVAR:returnUrl /]
+        [LL_WEBREPORT_ELSE /]
+            [LL_REPTAG_&originFolder LLURL:BROWSE SETVAR:returnUrl /]
+        [LL_WEBREPORT_ENDIF /]
+    
+        <div class="flex items-center">
+            <h1 class="mb-4 text-2xl font-semibold text-blue-600">Project Transmittals Overview</h1>
+            <a href="[LL_REPTAG_!returnUrl /]" class="mb-4 ml-2">
+                <img src="[LL_REPTAG_!icon_return /]" alt="return" title="Return" class="p-2" width="25" height="25">
+            </a>
+        </div>
+
+        <div id="transmittalSetDiv" class="mb-4 flex items-center space-x-2">
+            <b class=" ml-4 text-lg">Transmittal Set</b>
+            <select id="setSelector" onchange="processSetChange()" class="py-1 px-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:border-blue-500">
+                <option value='All'>All</option>
+                [LL_WEBREPORT_FOR DATA:[LL_REPTAG_!setsArray /] VAR:set /]
+                <option value="[LL_REPTAG_!set RECORD:SetID /]" class="text-blue-600">[LL_REPTAG_!set RECORD:'SetName' /]</option>
+                [LL_WEBREPORT_ENDFOR /]
+            </select>
+            <button type="button" title="Show All Transmitalls" id="AllTransmitalls" onclick="redirectToUrl()" class="bg-blue-500 hover:bg-blue-600 text-white py-1 px-4 rounded-md text-lg focus:outline-none focus:ring focus:border-blue-500">
+                Show All Transmittals
+            </button>
+        </div>
+        
+        <div class="relative overflow-x-auto shadow-md sm:rounded-lg">
+            <table id="mainTable" class="w-full text-sm text-left text-blue-100 dark:text-blue-100">
+                <thead class="text-xs text-white uppercase bg-blue-600 dark:text-white text-center">
+                    <tr>
+                        <th scope="col" class="px-1 py-3">
+                            #
+                        </th>
+                        <th scope="col" class="px-3 py-3">
+                            Transmittal Name
+                        </th>
+                        <th scope="col" class="px-2 py-3">
+                            Transmittal Title
+                        </th>
+                        <th scope="col" class="px-2 py-3">
+                            Transmittal Description
+                        </th>
+                        <th scope="col" class="px-3 py-3">
+                            Documents
+                        </th>
+                        <th scope="col" class="px-2 py-3">
+                            Date sent / Sender
+                        </th>
+                        <th scope="col" class="px-2 py-3">
+                            Recipients
+                        </th>
+                        <th scope="col" class="px-1 py-3">
+                            Edit
+                        </th>
+                        <th scope="col" class="px-1 py-3">
+                            Send
+                        </th>
+                        <th scope="col" class="px-1 py-3">
+                            Add Recipients
+                        </th>
+                        <th scope="col" class="px-1 py-3">
+                            Revoke Trans.
+                        </th>
+                    </tr>
+                    <!-- Search row -->
+                    <tr class="text-black">
+                        <td scope="col" class="py-3">
+                            <img src="[LL_REPTAG_!icon_search /]" alt="Search Icon" class="p-2 w-8 h-8 text-blue-500 hover:text-blue-600">
+                        </td>
+                        <td scope="col" class="py-3">
+                            <input type="text" id="searchTransmittalName" onkeyup="searchTransmittalName()" class="py-3 rounded-lg w-auto p-1">
+                        </td>
+                        <td scope="col" class="py-3">
+                            <input type="text" id="searchTransmittalTitle" onkeyup="searchTransmittalTitle()" class="py-3 rounded-lg w-auto p-1">
+                        </td>
+                        <td scope="col" class="py-3">
+                            <input type="text" id="searchTransmittalDescription" onkeyup="searchTransmittalDescription()" class="py-3 rounded-lg w-auto p-1">
+                        </td>
+                        <td scope="col" class="py-3"></td>
+                        <td scope="col" class="py-3"></td>
+                        <td scope="col" class="py-3">
+                            <input type="text" id="searchRecipient" onkeyup="searchRecipient()" class="py-3 rounded-lg w-auto p-1">
+                        </td>
+                        <td scope="col" class="py-3"></td>
+                        <td scope="col" class="py-3"></td>
+                        <td scope="col" class="py-3"></td>
+                        <td scope="col" class="py-3"></td>
+                        
+                    </tr>
+                </thead>
+            	        
+    	        <tbody class="text-black">
+    	            [// Get contact list, extract contactID array and second array with name,lastname and email
+                    [LL_REPTAG_$GetContactsWR RUNSWR SETVAR:ContactList /]
+                    [LL_REPTAG_!ContactList PLUCK:ContactID SETVAR:ContactIDs /]
+                    
+                    [//prepare set ID data for transmittal LR
+                    [LL_WEBREPORT_IF "[LL_REPTAG_&selectedSet TRIM /]" == "All" /]
+                        [LL_WEBREPORT_FOR DATA:[LL_REPTAG_!setsArray /] VAR:set /]
+                            [LL_REPTAG_!set RECORD:SetID QUOTE CONCATVAR:setIds /]
+                            [LL_REPTAG_',' CONCATVAR:setIds /]
+                        [LL_WEBREPORT_ENDFOR /]
+                        [LL_REPTAG_!setIds SLICE:1:-2 SETVAR:setIds /]
+                    [LL_WEBREPORT_ELSE /]
+                        [LL_REPTAG_&selectedSet TRIM QUOTE SETVAR:setIds /]
+                    [LL_WEBREPORT_ENDIF /]
+                    
+                    [//Pagination
+                    [LL_REPTAG_$GetTransmittalsBySetWR RUNSWR:setIds:[LL_REPTAG_!setIds /]:offset:[LL_REPTAG_&offset /] SETVAR:transmittalRecords /]
+    
+                    [LL_REPTAG_$GetTransmittalCountBySetWR RUNSWR:setIds:[LL_REPTAG_!setIds /] TRIM SETVAR:transmittalCount /]
+    
+                    
+                    [// Get coversheet folder
+                    [LL_REPTAG_&originFolder NODEINFO:VOLUMEID SETVAR:volumeId /]
+                    [LL_REPTAG_$GetCoversheetsFolderWR RUNSWR:ownerId:[LL_REPTAG_!volumeId /] SETVAR:coversheetFolder /]
+                    [LL_REPTAG_$GetTransmittalsByFolderWR RUNSWR:parentId:[LL_REPTAG_!coversheetFolder TRIM /] SETVAR:coversheetRecords /]
+                    
+                    [LL_WEBREPORT_FOR DATA:[LL_REPTAG_!transmittalRecords /] VAR:transmittalRecord /]
+                        [LL_REPTAG_$EditTransmittalWR LLURL:REPORT SETVAR:editTransmittalUrl /]
+                        [LL_REPTAG_!transmittalRecord RECORD:DATAID CONCATVAR:editTransmittalUrl:'&transmittalId=' /]
+                        [LL_REPTAG_&outboundFolder CONCATVAR:editTransmittalUrl:'&outboundFolder=' /]
+                        [LL_REPTAG_&originFolder CONCATVAR:editTransmittalUrl:'&originFolder=' /]
+                        
+                        [LL_REPTAG_$SendTransmittalWR LLURL:REPORT SETVAR:sendTransmittalUrl /]
+                        [LL_REPTAG_!transmittalRecord RECORD:DATAID CONCATVAR:sendTransmittalUrl:'&transmittalId=' /]
+                        [LL_REPTAG_&outboundFolder CONCATVAR:sendTransmittalUrl:'&outboundFolder=' /]
+                        [LL_REPTAG_&projectInboundFolder CONCATVAR:sendTransmittalUrl:'&projectInboundFolder=' /]
+                        [LL_REPTAG_&originFolder CONCATVAR:sendTransmittalUrl:'&originFolder=' /]
+                        [LL_REPTAG_&nexturl CONCATVAR:sendTransmittalUrl:'&nexturl=' /]
+                        
+                        [LL_REPTAG_$AddRecipientsWR LLURL:REPORT SETVAR:addRecipientsUrl /]
+                        [LL_REPTAG_!transmittalRecord RECORD:DATAID CONCATVAR:addRecipientsUrl:'&transmittalId=' /]
+                        [LL_REPTAG_&outboundFolder CONCATVAR:addRecipientsUrl:'&outboundFolder=' /]
+                        [LL_REPTAG_&originFolder CONCATVAR:addRecipientsUrl:'&originFolder=' /]
+                        
+                        [// Revoke transmittal
+                        [LL_REPTAG_$RevokationModalWR LLURL:REPORT SETVAR:revokeTransmittalUrl /]
+                        [LL_REPTAG_!transmittalRecord RECORD:DATAID CONCATVAR:revokeTransmittalUrl:'&transmittalId=' /]
+                        [LL_REPTAG_&outboundFolder CONCATVAR:revokeTransmittalUrl:'&outboundFolder=' /]
+                        [LL_REPTAG_&originFolder CONCATVAR:revokeTransmittalUrl:'&originFolder=' /]
+                        [LL_REPTAG_&nexturl CONCATVAR:revokeTransmittalUrl:'&nexturl=' /]
+                        
+                        [LL_REPTAG_!transmittalRecord RECORD:DATAID CAT:'SBU Power - TECH Transmittal':'Sent':DISPLAY SETVAR:SentTransmittal /]
+                        
+                        [LL_REPTAG_!transmittalRecord RECORD:DATAID CAT:'SBU Power - Dexter Transmittal':'Revoked Transmittal':DISPLAY SETVAR:RevokedTransmittal /]
+                        
+                        [LL_REPTAG_!transmittalRecord RECORD:DATAID CAT:'SBU Power - TECH Transmittal':'CoversheetFolder':DISPLAY CHILDREN LENGTH SETVAR:numberOfCoversheets /]
+                        
+                        <tr id="rowToDisplay" class="[LL_REPTAG_!transmittalRecord_index ODDEVEN:'bg-blue-200 border-b border-blue-100 hover:bg-blue-250':'bg-blue-300 border-b border-blue-100 hover:bg-blue-350' /]">
+                            <td scope="row" class="px-2 py-4">
+                                [LL_REPTAG_&offset ADD:[LL_REPTAG_!transmittalRecord_index /] /]
+                            </td>
+                            <th class="px-3 py-4"> [//font-medium text-black whitespace-nowrap dark:text-blue-100
+                                [LL_REPTAG_!transmittalRecord RECORD:NAME /]
+                            </th>
+                            <td class="px-2 py-4">
+                                [LL_REPTAG_!transmittalRecord RECORD:DATAID CAT:'SBU Power - TECH Transmittal':'TransmittalTitle':DISPLAY DEF:'Title not found' /]
+                            </td>
+                	    	<td class="px-2 py-4 text-xs">
+                	    	    [LL_REPTAG_!transmittalRecord RECORD:DATAID CAT:'SBU Power - TECH Transmittal':'TransmittalDescription':DISPLAY DEF:'Description not found' /]
+                	    	</td>
+                	    	[//<pre class="paddedRows">
+                	    	<td class="px-3 py-4 text-xs">
+                	    	    <button class="bg-gradient-to-r from-blue-400 to-blue-500 border-0 rounded-md shadow-md text-white cursor-pointer font-montserrat text-sm my-2 py-2 px-3 text-center select-none focus:outline-none" role="button" title="Show/Hide Documents" onclick="showDocs([LL_REPTAG_!transmittalRecord RECORD:DATAID /])"> ... </button>
+    
+                	    	    <div id="[LL_REPTAG_!transmittalRecord RECORD:DATAID /]" style="display: none";>
+                                    [// Coversheet:
+                                    [LL_WEBREPORT_FOR DATA:[LL_REPTAG_!transmittalRecord RECORD:DATAID CAT:'SBU Power - TECH Transmittal':'CoversheetFolder':DISPLAY CHILDREN /] VAR:coversheetId /]
+                    	    	        
+                    	    	        <a href="[LL_REPTAG_!coversheetId RECORD:DATAID LLURL:DEFAULTLINK /]">
+                                            [LL_REPTAG_!coversheetId RECORD:DATAID LLURL:GIF /] [LL_REPTAG_!coversheetId RECORD:DATAID NODEINFO:NAME /] [LL_REPTAG_!coversheetId RECORD:DATAID LLURL:FUNCTIONMENU:[LL_REPTAG_!transmittalRecord_index /] /]
+                                        </a>
+                                        
+                                        <br/>
+                                    [LL_WEBREPORT_ENDFOR /]
+                                    [// Documents:
+                	    	        [LL_WEBREPORT_FOR DATA:[LL_REPTAG_!transmittalRecord RECORD:DataID CHILDREN /] VAR:shortcutRecord /]
+                                        <a href="[LL_REPTAG_!shortcutRecord RECORD:ORIGINDATAID LLURL:DEFAULTLINK /]">
+                                            [LL_REPTAG_!shortcutRecord RECORD:ORIGINDATAID LLURL:GIF /] [LL_REPTAG_!shortcutRecord RECORD:ORIGINDATAID NODEINFO:NAME /] [LL_REPTAG_!shortcutRecord RECORD:ORIGINDATAID LLURL:FUNCTIONMENU:[LL_REPTAG_!transmittalRecord_index /] /]
+                                        </a>
+                                        <br/>
+                                    [LL_WEBREPORT_ENDFOR /]
+                                    <br/>
+                	    	    </div>
+                	    	</td>
+                	    	<td class="px-2 py-4 text-xs">
+                    	    	[LL_WEBREPORT_IF "[LL_REPTAG_!transmittalRecord RECORD:DATAID CAT:'SBU Power - TECH Transmittal':'Sent':DISPLAY /]" == "true" /]
+                    	    	    Sent: [LL_REPTAG_!transmittalRecord RECORD:DATAID CAT:'SBU Power - TECH Transmittal':'SentDate':DISPLAY DATE:SHORT /]
+                    	    	    <br/>
+                    	    	    <i>Sent by: [LL_REPTAG_!transmittalRecord RECORD:DATAID CAT:'SBU Power - TECH Transmittal':'Sender':DISPLAY USERINFO:FULLNAME /]</i>
+                    	    	[LL_WEBREPORT_ENDIF /]
+                    	    	<br/><br/>
+                    	    	[LL_WEBREPORT_IF "[LL_REPTAG_!transmittalRecord RECORD:DATAID CAT:'SBU Power - Dexter Transmittal':'Revoked Transmittal':DISPLAY /]" == "true" /]
+                    	    	    Revoked: [LL_REPTAG_!transmittalRecord RECORD:DATAID CAT:'SBU Power - Dexter Transmittal':'Date Revoked':DISPLAY DATE:SHORT /]
+                    	    	    <br/>
+                    	    	    <i>Revoked by: [LL_REPTAG_!transmittalRecord RECORD:DATAID CAT:'SBU Power - Dexter Transmittal':'Revoked By':DISPLAY USERINFO:FULLNAME /]</i>
+                    	    	[LL_WEBREPORT_ENDIF /] 
+                	    	</td>
+                   	    	<td class="px-2 py-4 text-xs"><br/>
+                	    	    [LL_REPTAG_!transmittalRecord RECORD:DATAID CAT:'SBU Power - TECH Transmittal':MVSET:'Recipients':COUNT SETVAR:numberOfRecipients /]
+                	    	    
+                	    	    [LL_WEBREPORT_IF "[LL_REPTAG_!numberOfRecipients /]" == "1" AND '[LL_REPTAG_!transmittalRecord RECORD:DATAID CAT:"SBU Power - TECH Transmittal":MVSET:"Recipients":"1":"ContactID":DISPLAY /]' == '' /]
+                	    	        No recipients found
+                                [LL_WEBREPORT_ELSE /]
+                                    [LL_WEBREPORT_FOR DATA:[LL_REPTAG_!numberOfRecipients INTLIST /] VAR:i /]
+                	    	            [LL_WEBREPORT_FOR DATA:[LL_REPTAG_!ContactIDs /] VAR:j /]
+                	    	                [LL_WEBREPORT_IF '[LL_REPTAG_!j /]' == '[LL_REPTAG_!transmittalRecord RECORD:DATAID CAT:"SBU Power - TECH Transmittal":MVSET:"Recipients":"[LL_REPTAG_!i /]":"ContactID":DISPLAY /]' /]
+                	    	                    [LL_REPTAG_!ContactList RECARRAY:[LL_REPTAG_!j_index /]:First_Name /] [LL_REPTAG_!ContactList RECARRAY:[LL_REPTAG_!j_index /]:Last_Name /]
+                	    	                    <div class="text-xxs italic">
+                	    	                        [LL_REPTAG_!ContactList RECARRAY:[LL_REPTAG_!j_index /]:Email /]
+                	    	                    </div>
+                	    	                    [LL_WEBREPORT_BREAK /]
+                	    	                [LL_WEBREPORT_ENDIF /]
+                	    	            [LL_WEBREPORT_ENDFOR /]
+                	    	        [LL_WEBREPORT_ENDFOR /]
+                	    	    [LL_WEBREPORT_ENDIF /]
+                	    	    <br/>
+                	    	</td>
+                	    	<td class="px-1 py-4 text-xs">
+                	    	    [LL_WEBREPORT_IF "[LL_REPTAG_!SentTransmittal /]" == "TRUE" /]
+                	    	        Already sent
+                	    	    [LL_WEBREPORT_ELSE /]
+                	    	        <span title="Edit Transmittal">
+                	    	            <a href='[LL_REPTAG_!editTransmittalUrl /]'>
+                	    	                <img width="30px" height="30px" src="[LL_REPTAG_!icon_edit /]" />
+            	    	                </a>
+                	    	        </span>
+                	    	    [LL_WEBREPORT_ENDIF /]
+                	    	</td>
+                	    	<td class="px-1 py-4 text-xs">
+                	    	    [LL_WEBREPORT_IF "[LL_REPTAG_!SentTransmittal /]" == "FALSE" AND "[LL_REPTAG_!numberOfCoversheets /]" > "0" /]
+                	    	        <span title="Send Transmittal">
+                	    	            <a id="sendTransmittalId" href='[LL_REPTAG_!sendTransmittalUrl /]'>
+                	    	                <img width="30px" height="30px" src="[LL_REPTAG_!icon_send /]" />
+                	    	            </a>
+                	    	        </span>
+            	    	        [LL_WEBREPORT_ELSEIF "[LL_REPTAG_!SentTransmittal /]" == "FALSE" AND "[LL_REPTAG_!numberOfCoversheets /]" == "0" /]
+            	    	            No coversheet found
+                	    	    [LL_WEBREPORT_ELSEIF "[LL_REPTAG_!SentTransmittal /]" == "TRUE" /]
+                	    	        Already sent
+                	    	    [LL_WEBREPORT_ELSE /]
+                	    	        Not found
+                	    	    [LL_WEBREPORT_ENDIF /]
+                	    	</td>
+                	    	<td class="px-1 py-4 text-xs">
+                	    	    [LL_WEBREPORT_IF "[LL_REPTAG_!SentTransmittal /]" == "TRUE" AND "[LL_REPTAG_!RevokedTransmittal /]" == "FALSE" /]
+                	    	        <span title="Add Recipients">
+                	    	            <a href='[LL_REPTAG_!addRecipientsUrl /]'>
+                	    	                <img width="30px" height="30px" src="[LL_REPTAG_!icon_user /]" />
+            	    	                </a>
+                	    	        </span>
+                	    	    [LL_WEBREPORT_ENDIF /]
+                	    	</td>
+                	    	<td class="px-1 py-4 text-xs">
+                	    	    [LL_WEBREPORT_IF "[LL_REPTAG_!SentTransmittal /]" == "TRUE" AND "[LL_REPTAG_!RevokedTransmittal /]" == "FALSE" /]
+                	    	    <span title="Revoke Transmittal">
+                	    	        [// <a href="[LL_REPTAG_!revokeTransmittalUrl /]" >
+                	    	        
+                	    	        [// HTML Modal element
+                	    	        <a hx-get="[LL_REPTAG_URLPREFIXFULL /][LL_REPTAG_!revokeTransmittalUrl /]" hx-target="body" hx-swap="beforeend" style="cursor: pointer;">
+                	    	            <img width="30px" height="30px" src="[LL_REPTAG_!icon_revoke /]" />
+                	    	        </a>
+                	    	    </span>
+                	    	    [LL_WEBREPORT_ELSEIF "[LL_REPTAG_!SentTransmittal /]" == "FALSE" /]
+                	    	    
+                	    	    [LL_WEBREPORT_ELSEIF "[LL_REPTAG_!RevokedTransmittal /]" == "TRUE" /]
+                	    	        Already revoked
+                	    	    [LL_WEBREPORT_ELSE /]
+                	    	    
+                	    	    [LL_WEBREPORT_ENDIF /]
+                	    	</td>
+            	        </tr>
+    	            [LL_WEBREPORT_ENDFOR /]
+                </tbody>
+            </table>
+        </div>
+        [/*
+        [// Page controls, show only when there are more transmittals than pagesize
+        [LL_WEBREPORT_IF "[LL_REPTAG_!transmittalCount /]" > "[LL_REPTAG_$PAGESIZE /]" /]
+            <INPUT type='button' title='First' id='first' value='<<' onclick="changePage('first');">
+            <INPUT type='button' title='Previous' id='previous' value='<' onclick="changePage('prev');">
+            <INPUT type='button' title='Next' id='next' value='>' onclick="changePage('next');">
+            <INPUT type='button' title='Last' id='last' value='>>' onclick="changePage('last');">
+            <br/> 
+            <br/> 
+            [LL_REPTAG_&offset DIVIDE:[LL_REPTAG_$PAGESIZE /] ROUND:0 ADD:1 SETVAR:page /]
+            <div class="pageNumber">
+                Page [LL_REPTAG_!page /]/[LL_REPTAG_!transmittalCount DIVIDE:[LL_REPTAG_$PAGESIZE /] ROUND:CEIL /]
+            </div>
+        [LL_WEBREPORT_ENDIF /]
+        */]
+        [LL_WEBREPORT_IF "[LL_REPTAG_!transmittalCount /]" > "[LL_REPTAG_$PAGESIZE /]" /]
+        
+            <div class="flex justify-center items-center space-x-4 mt-4">
+                <button id="first" onclick="changePage('first');" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md">
+                    &lt;&lt;
+                </button>
+                <button id="previous" onclick="changePage('prev');" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md">
+                    &lt;
+                </button>
+                <button id="next" onclick="changePage('next');" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md">
+                    &gt;
+                </button>
+                <button id="last" onclick="changePage('last');" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md">
+                    &gt;&gt;
+                </button>
+            </div>
+            
+            <div class="mt-4 text-center">
+                <span class="text-gray-500">Page</span>
+                <span class="font-semibold text-blue-500">[LL_REPTAG_&offset DIVIDE:[LL_REPTAG_$PAGESIZE /] ROUND:0 ADD:1 /]</span>
+                <span class="text-gray-500">/</span>
+                <span class="font-semibold text-blue-500">[LL_REPTAG_!transmittalCount DIVIDE:[LL_REPTAG_$PAGESIZE /] ROUND:CEIL /]</span>
+            </div>
+            
+        [LL_WEBREPORT_ENDIF /]
+        
+    </div>    
+</html>
+
+
+<script>
+    // loading function
+    function loading() {
+        document.getElementById('loading-overlay').style.display = 'block';
+    }
+
+    // AllTransmittalsWR
+    function redirectToUrl(event) {
+        loading();
+        
+        // Extract the URL from the href attribute
+        var url = event.currentTarget.getAttribute('href');
+        
+        // Navigate to the extracted URL
+        window.location.href = url;
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        // Get the <a> element by its ID
+        var sendTransmittalLink = document.getElementById("sendTransmittalId");
+
+        if (sendTransmittalLink) {
+            // Attach the redirectToUrl function to the click event
+            sendTransmittalLink.addEventListener("click", redirectToUrl);
+        }
+    });
+
+
+    // Pagination
+    var baseUrl = "cs.exe[LL_REPTAG_MYID LLURL:REPORT /]&outboundFolder=[LL_REPTAG_&outboundFolder /]&projectInboundFolder=[LL_REPTAG_&projectInboundFolder /]&originFolder=[LL_REPTAG_&originFolder /]";
+    var currentOffset = [LL_REPTAG_&offset /];
+    var totalCount = "[LL_REPTAG_!transmittalCount /]";
+    var pageSize = [LL_REPTAG_$PAGESIZE /];
+    var selectedSetFromParam = "[LL_REPTAG_&selectedSet /]";
+    
+    function changePage(changeType){
+        loading();
+        
+        var newOffset = 0;
+        var pageSize = 10;
+        switch (changeType) {
+            case 'first':
+                newOffset = 0;
+                break;
+            case 'prev':
+                newOffset = Math.max(currentOffset - pageSize, 0);
+                break;
+            case 'next':
+                newOffset = Math.min(currentOffset + pageSize, totalCount - pageSize);
+                break;
+            case 'last':
+                // Calculate the number of pages
+                var totalPages = Math.ceil(totalCount / pageSize);
+        
+                // Calculate the last page's offset
+                newOffset = (totalPages - 1) * pageSize;
+        
+                // Adjust the last page's offset if totalCount is not a multiple of pageSize
+                var remainingItems = totalCount % pageSize;
+                if (remainingItems > 0) {
+                    newOffset = totalCount - remainingItems;
+                }
+                break;
+        }
+
+        // Ensure newOffset is within valid bounds
+        newOffset = Math.max(newOffset, 0);
+        newOffset = Math.min(newOffset, totalCount - pageSize);
+        
+        // Use the newOffset for pagination
+        //console.log("newOffset:", newOffset);
+        
+        var redirectUrl = baseUrl + "&offset=" + newOffset + "&selectedSet=" + selectedSetFromParam;
+        window.location = redirectUrl;
+    };
+    
+    //save set folder IDs
+    var setFolders = new Map();
+    [LL_WEBREPORT_FOR DATA:[LL_REPTAG_!setsArray /] VAR:set /]
+        setFolders.set("[LL_REPTAG_!set RECORD:SetID /]", "[LL_REPTAG_$GetOutboundFolderForSet RUNSWR:projectDMSID:[LL_REPTAG_&outboundFolder NODEINFO:VOLUMEID /]:setID:[LL_REPTAG_!set RECORD:SetID /] SHOW TRIM /]");
+    [LL_WEBREPORT_ENDFOR /]
+    
+    //set switching
+    function processSetChange(){
+        var redirectUrl = baseUrl + "&offset=0" + "&selectedSet=" + $.trim($("#setSelector").val());
+        window.location = redirectUrl;
+    }
+    
+    //set selected set
+    $(document).ready(function(){
+        $('#setSelector').val(selectedSetFromParam);
+    });
+
+    function searchTransmittalName() {
+      var input, filter, table, tr, td, i, txtValue;
+      input = document.getElementById("searchTransmittalName");
+      input2 = document.getElementById("searchTransmittalTitle");
+      filter = input.value.toUpperCase();
+      filter2 = input2.value.toUpperCase();
+      table = document.getElementById("mainTable");
+      tr = table.getElementsByTagName("tr");
+      
+      for (i = 2; i < tr.length; i++) {
+        td = tr[i].getElementsByTagName("td")[1];
+        if (td) {
+          txtValue = td.textContent || td.innerText;
+          if (txtValue.toUpperCase().indexOf(filter) > -1) {
+            tr[i].style.display = "";
+          } else {
+            tr[i].style.display = "none";
+          };
+        };
+      };
+    };
+      
+    function searchTransmittalTitle() {
+      var input, filter, table, tr, td, i, txtValue;
+      input = document.getElementById("searchTransmittalTitle");
+      filter = input.value.toUpperCase();
+      table = document.getElementById("mainTable");
+      tr = table.getElementsByTagName("tr");
+      
+      for (i = 2; i < tr.length; i++) {
+        td = tr[i].getElementsByTagName("td")[2];
+        if (td) {
+          txtValue = td.textContent || td.innerText;
+          if (txtValue.toUpperCase().indexOf(filter) > -1) {
+            tr[i].style.display = "";
+          } else {
+            tr[i].style.display = "none";
+          };
+        };
+      };
+    };
+    
+    function searchTransmittalDescription() {
+      var input, filter, table, tr, td, i, txtValue;
+      input = document.getElementById("searchTransmittalDescription");
+      filter = input.value.toUpperCase();
+      table = document.getElementById("mainTable");
+      tr = table.getElementsByTagName("tr");
+      
+      for (i = 2; i < tr.length; i++) {
+        td = tr[i].getElementsByTagName("td")[3];
+        if (td) {
+          txtValue = td.textContent || td.innerText;
+          if (txtValue.toUpperCase().indexOf(filter) > -1) {
+            tr[i].style.display = "";
+          } else {
+            tr[i].style.display = "none";
+          };
+        };
+      };
+    };
+    
+    function searchRecipient() {
+      var input, filter, table, tr, td, i, txtValue;
+      input = document.getElementById("searchRecipient");
+      filter = input.value.toUpperCase();
+      table = document.getElementById("mainTable");
+      tr = table.getElementsByTagName("tr");
+      
+      for (i = 2; i < tr.length; i++) {
+        td = tr[i].getElementsByTagName("td")[6];
+        if (td) {
+          txtValue = td.textContent || td.innerText;
+          if (txtValue.toUpperCase().indexOf(filter) > -1) {
+            tr[i].style.display = "";
+          } else {
+            tr[i].style.display = "none";
+          };
+        };
+      };
+    };
+    
+    function showDocs(transmittalId) {
+        var x = document.getElementById(transmittalId);
+        if (x.style.display === "none") {
+            x.style.display = "block";
+        } else {
+            x.style.display = "none";
+        };
+    };
+
+</script>
