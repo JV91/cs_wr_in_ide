@@ -242,7 +242,7 @@ async fn main() {
             }
         };
 
-        // TODO! - switch hardtyped file name to actual file name in content server
+        // TODO! - switch hardtyped file name to actual file name in content server, come on!
         // Compare API content with webreport.vrw file content
         if local_content != api_node_content {
             match create_new_file("../webreport.vrw", &api_node_content) {
