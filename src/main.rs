@@ -7,6 +7,7 @@ use std::fs::File;
 use std::io::Write;
 use std::error::Error;
 use std::fmt;
+use std::process::{Command, ExitStatus};
 
 use dotenv::dotenv;
 use reqwest::header::{HeaderMap, HeaderValue};
@@ -102,7 +103,7 @@ async fn get_node_content(
 }
 
 fn read_local_node_content() -> Result<String, CustomError> {
-    match std::fs::read_to_string("webreport.wrv") {
+    match std::fs::read_to_string("../webreport.vrw") {
         Ok(content) => Ok(content),
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
             // File not found, create new file
@@ -112,11 +113,30 @@ fn read_local_node_content() -> Result<String, CustomError> {
     }
 }
 
-fn create_new_file(file_content: &str) -> Result<(), std::io::Error> {
+fn create_new_file(file_path: &str, file_content: &str) -> Result<(), std::io::Error> {
     // Write content to cs.groovy file
-    let mut file = File::create("webreport.wrv").expect("Failed to create file");
-    file.write_all(file_content.as_bytes())
-        .expect("Failed to write to file");
+    let mut file = File::create(file_path)?;
+    file.write_all(file_content.as_bytes())?;
+
+    Ok(())
+}
+
+fn open_file_in_vscode(file_path: &str) -> Result<(), std::io::Error> {
+    // Specify the full path to the code executable
+    let code_path = "C:\\Users\\jan.vais\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe";
+
+    // Execute the command to open the specified file in VS Code
+    let output = Command::new(code_path)
+        .arg(file_path) // Pass the file path as an argument
+        .spawn()?
+        .wait()?;
+
+    // Check if the command was successful
+    if output.success() {
+        println!("VS Code opened successfully!");
+    } else {
+        eprintln!("Failed to open VS Code: {:?}", output);
+    }
 
     Ok(())
 }
@@ -222,11 +242,18 @@ async fn main() {
             }
         };
 
-        // Compare API content with webreport.wrv file content
+        // TODO! - switch hardtyped file name to actual file name in content server
+        // Compare API content with webreport.vrw file content
         if local_content != api_node_content {
-            match create_new_file(&api_node_content) {
-                Ok(_) => println!("Node updated successfully."),
-                Err(err) => eprintln!("Failed to update webreport.wrv file: {}\n", err),
+            match create_new_file("../webreport.vrw", &api_node_content) {
+                Ok(_) => {
+                    println!("Node updated successfully.");
+                    // Open the updated file in VS Code
+                    if let Err(err) = open_file_in_vscode("../webreport.vrw") {
+                        eprintln!("Failed to open file in VS Code: {}", err);
+                    }
+                }
+                Err(err) => eprintln!("Failed to update webreport.js file: {}", err),
             }
 
             // Call add_node_version with content from file
@@ -241,13 +268,36 @@ async fn main() {
         // Create cs.groovy file with content from API
         match authenticate_user(&domain, &username, &password).await {
             Ok(auth_token) => match get_node_content(&domain, &node_id, &auth_token).await {
-                Ok(api_node_content) => match create_new_file(&api_node_content) {
+                Ok(api_node_content) => match create_new_file("../webreport.vrw", &api_node_content) {
                     Ok(_) => println!("cs.groovy file created successfully."),
-                    Err(err) => eprintln!("Failed to create webreport.wrv file: {}", err),
+                    Err(err) => eprintln!("Failed to create webreport.js file: {}", err),
                 },
                 Err(err) => eprintln!("Failed to fetch node content: {}", err),
             },
             Err(err) => eprintln!("Authentication failed: {}", err),
         }
     }
+
+
+    // TODO! - add functionality with path system variable
+/*
+    // VS Code path
+    let code_path = "C:\\Users\\jan.vais\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe";
+
+    // Execute the command to open VS Code
+    let mut output = Command::new(code_path)
+        .spawn()
+        .expect("Failed to start VS Code");
+
+    // Wait for the process to finish and get the exit status
+    let status: ExitStatus = output.wait().expect("Failed to wait for the process");
+
+    // Check if the command was successful
+    if status.success() {
+        println!("VS Code opened successfully!");
+    } else {
+        eprintln!("Failed to open VS Code: {:?}", status);
+    }
+    */
+
 }
