@@ -1,8 +1,9 @@
+use crate::error::{AuthError, handle_error_status};
+
 use reqwest::{Client, StatusCode, Url, Response};
 use serde::{Deserialize, Serialize};
 use once_cell::sync::Lazy;
 use url::ParseError;
-use crate::error::{AuthError, handle_error_status};
 
 #[derive(Deserialize)]
 struct AuthResponse {
