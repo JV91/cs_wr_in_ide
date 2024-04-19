@@ -1,5 +1,5 @@
 #![allow(unused)]
-
+mod auth;
 mod error;
 
 use std::env;
@@ -19,69 +19,8 @@ use serde::Deserialize;
 use serde_urlencoded;
 use tokio;
 
+use auth::authenticate_user;
 use error::{AuthError, CustomError, handle_error_status};
-
-#[derive(Deserialize)]
-struct AuthResponse {
-    ticket: String,
-}
-
-async fn authenticate_user(
-    domain: &str,
-    username: &str,
-    password: &str,
-) -> Result<String, AuthError> {
-    let client = Client::new();
-    let path = "/otcs/cs.exe/api/v1/auth";
-    let auth_url = format!("https://{}{}", domain, path);
-    let auth_url = Url::parse(&auth_url).unwrap();
-
-    let mut data = std::collections::HashMap::new();
-    data.insert("username", username);
-    data.insert("password", password);
-
-    // Encode the data as x-www-form-urlencoded
-    let encoded_data = serde_urlencoded::to_string(&data).expect("Failed to encode data");
-
-    println!("Encoded data: {}", encoded_data);
-
-    let response = client
-        .post(auth_url)
-        .header(
-            reqwest::header::CONTENT_TYPE,
-            "application/x-www-form-urlencoded",
-        )
-        .body(encoded_data)
-        .send()
-        .await
-        .expect("Failed to execute request.");
-
-    println!("{:?}", response);
-
-    // Clone the status code for printing
-    let status_code = response.status();
-
-    // Read the response body into a variable
-    let response_text = response
-        .text()
-        .await
-        .unwrap_or_else(|_| String::from("Failed to read response body"));
-
-    println!("Response Status: {:?}", status_code);
-    println!("Response Body: {:?}", response_text);
-
-    match status_code {
-        StatusCode::OK => {
-            let auth_response: AuthResponse =
-                serde_json::from_str(&response_text).map_err(|_| {
-                    AuthError::NetworkError("Failed to parse response body".to_string())
-                })?;
-            Ok(auth_response.ticket)
-        }
-        StatusCode::UNAUTHORIZED => Err(AuthError::InvalidCredentials),
-        status => Err(handle_error_status(status)),
-    }
-}
 
 async fn get_node_content(
     domain: &str,
@@ -103,7 +42,7 @@ async fn get_node_content(
 }
 
 fn read_local_node_content() -> Result<String, CustomError> {
-    match std::fs::read_to_string("../webreport.vrw") {
+    match std::fs::read_to_string("C:\\Users\\jan.vais\\Desktop\\codebase\\!rust\\cs_wr_in_vscode\\webreport.vrw") {
         Ok(content) => Ok(content),
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
             // File not found, create new file
@@ -242,10 +181,12 @@ async fn main() {
             }
         };
 
-        // TODO! - switch hardtyped file name to actual file name in content server, come on!
+        // println!("Local content: {}, api content: {}", local_content, api_node_content);
+
+        // TODO! - switch hard-typed file name to actual file name in content server!
         // Compare API content with webreport.vrw file content
         if local_content != api_node_content {
-            match create_new_file("../webreport.vrw", &api_node_content) {
+            match create_new_file("C:\\Users\\jan.vais\\Desktop\\codebase\\!rust\\cs_wr_in_vscode\\webreport.vrw", &api_node_content) {
                 Ok(_) => {
                     println!("Node updated successfully.");
                     // Open the updated file in VS Code
@@ -268,7 +209,7 @@ async fn main() {
         // Create cs.groovy file with content from API
         match authenticate_user(&domain, &username, &password).await {
             Ok(auth_token) => match get_node_content(&domain, &node_id, &auth_token).await {
-                Ok(api_node_content) => match create_new_file("../webreport.vrw", &api_node_content) {
+                Ok(api_node_content) => match create_new_file("C:\\Users\\jan.vais\\Desktop\\codebase\\!rust\\cs_wr_in_vscode\\webreport.vrw", &api_node_content) {
                     Ok(_) => println!("cs.groovy file created successfully."),
                     Err(err) => eprintln!("Failed to create webreport.js file: {}", err),
                 },
@@ -280,24 +221,5 @@ async fn main() {
 
 
     // TODO! - add functionality with path system variable
-/*
-    // VS Code path
-    let code_path = "C:\\Users\\jan.vais\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe";
-
-    // Execute the command to open VS Code
-    let mut output = Command::new(code_path)
-        .spawn()
-        .expect("Failed to start VS Code");
-
-    // Wait for the process to finish and get the exit status
-    let status: ExitStatus = output.wait().expect("Failed to wait for the process");
-
-    // Check if the command was successful
-    if status.success() {
-        println!("VS Code opened successfully!");
-    } else {
-        eprintln!("Failed to open VS Code: {:?}", status);
-    }
-    */
 
 }
