@@ -16,6 +16,7 @@ pub enum AuthError {
     ServerError(StatusCode),
     ParseError(String),
     SerdeError(String),
+    Other(String),
 }
 
 impl fmt::Display for AuthError {
@@ -26,6 +27,7 @@ impl fmt::Display for AuthError {
             AuthError::NetworkError(msg) => write!(f, "Network error occurred during authentication: {}", msg),
             AuthError::ParseError(msg) => write!(f, "Error occurred during parsing data: {}", msg),
             AuthError::SerdeError(msg) => write!(f, "Failed to serialize request data: {}", msg),
+            AuthError::Other(msg) => write!(f, "Failed to authenticate user: {}", msg),
         }
     }
 }

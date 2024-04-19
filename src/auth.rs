@@ -1,6 +1,7 @@
 use reqwest::{Client, StatusCode, Url, Response};
 use serde::{Deserialize, Serialize};
 use once_cell::sync::Lazy;
+use url::ParseError;
 use crate::error::{AuthError, handle_error_status};
 
 #[derive(Deserialize)]
@@ -14,58 +15,59 @@ struct AuthRequest {
     password: String,
 }
 
+static CLIENT: Lazy<Client> = Lazy::new(|| Client::new());
+
 pub async fn authenticate_user(
     domain: &str,
     username: &str,
     password: &str,
 ) -> Result<String, AuthError> {
-    // Reuse a static Client instance
-    static CLIENT: Lazy<Client> = Lazy::new(|| Client::new());
+    let auth_url = format_auth_url(domain)?;
+    let encoded_data = encode_request_data(username, password)?;
+    let response = send_auth_request(&auth_url, &encoded_data).await?;
+    let status_code = response.status();
+    let response_text = read_response_body(response).await?;
+    handle_auth_response(status_code, &response_text)
+}
 
+fn format_auth_url(domain: &str) -> Result<Url, ParseError> {
     let path = "/otcs/cs.exe/api/v1/auth";
     let auth_url = format!("https://{}{}", domain, path);
-    let auth_url = Url::parse(&auth_url)?;
+    Url::parse(&auth_url)
+}
 
-    // Serialize request data using serde
+fn encode_request_data(username: &str, password: &str) -> Result<String, serde_urlencoded::ser::Error> {
     let request_data = AuthRequest {
         username: username.to_string(),
         password: password.to_string(),
     };
+    serde_urlencoded::to_string(&request_data)
+}
 
-    let encoded_data = serde_urlencoded::to_string(&request_data)?;
-
-    //println!("Encoded data: {}", encoded_data);
-
-    let response = CLIENT
-        .post(auth_url)
-        .header(
-            reqwest::header::CONTENT_TYPE,
-            "application/x-www-form-urlencoded",
-        )
-        .body(encoded_data)
+async fn send_auth_request(auth_url: &Url, encoded_data: &str) -> Result<reqwest::Response, reqwest::Error> {
+    CLIENT
+        .post(auth_url.clone())
+        .header(reqwest::header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .body(encoded_data.to_owned())
         .send()
-        .await?;
-
-    println!("{:?}", response);
-
-    // Clone the status code for printing
-    let status_code = response.status();
-
-    // Read the response body into a variable
-    let response_text = response
-        .text()
         .await
-        .unwrap_or_else(|_| String::from("Failed to read response body"));
+}
 
+async fn read_response_body(response: reqwest::Response) -> Result<String, AuthError> {
+    let response_text = response.text().await.unwrap_or_else(|_| String::from("Failed to read response body"));
+    Ok(response_text)
+}
+
+fn handle_auth_response(status_code: StatusCode, response_text: &str) -> Result<String, AuthError> {
     match status_code {
         StatusCode::OK => {
             let auth_response: AuthResponse =
-                serde_json::from_str(&response_text).map_err(|_| {
+                serde_json::from_str(response_text).map_err(|_| {
                     AuthError::NetworkError("Failed to parse response body".to_string())
                 })?;
             Ok(auth_response.ticket)
         }
         StatusCode::UNAUTHORIZED => Err(AuthError::InvalidCredentials),
-        status => Err(handle_error_status(status)),
+        status => Err(AuthError::Other(format!("Unexpected status code: {}", status))),
     }
 }
