@@ -14,6 +14,8 @@ pub enum AuthError {
     InvalidCredentials,
     NetworkError(String),
     ServerError(StatusCode),
+    ParseError(String),
+    SerdeError(String),
 }
 
 impl fmt::Display for AuthError {
@@ -22,11 +24,26 @@ impl fmt::Display for AuthError {
             AuthError::ServerError(status) => write!(f, "Server Error: {}", status),
             AuthError::InvalidCredentials => write!(f, "Invalid username or password"),
             AuthError::NetworkError(msg) => write!(f, "Network error occurred during authentication: {}", msg),
+            AuthError::ParseError(msg) => write!(f, "Error occurred during parsing data: {}", msg),
+            AuthError::SerdeError(msg) => write!(f, "Failed to serialize request data: {}", msg),
         }
     }
 }
 
 impl Error for AuthError {}
+
+
+impl From<url::ParseError> for AuthError {
+    fn from(err: url::ParseError) -> Self {
+        AuthError::NetworkError(format!("Failed to parse URL: {}", err))
+    }
+}
+
+impl From<serde_urlencoded::ser::Error> for AuthError {
+    fn from(err: serde_urlencoded::ser::Error) -> Self {
+        AuthError::SerdeError(format!("Failed to serialize request data: {}", err))
+    }
+}
 
 impl From<reqwest::Error> for AuthError {
     fn from(err: reqwest::Error) -> Self {

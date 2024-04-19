@@ -1,5 +1,6 @@
-use reqwest::{Client, StatusCode, Url};
-use serde::Deserialize;
+use reqwest::{Client, StatusCode, Url, Response};
+use serde::{Deserialize, Serialize};
+use once_cell::sync::Lazy;
 use crate::error::{AuthError, handle_error_status};
 
 #[derive(Deserialize)]
@@ -7,26 +8,35 @@ struct AuthResponse {
     ticket: String,
 }
 
+#[derive(Serialize)]
+struct AuthRequest {
+    username: String,
+    password: String,
+}
+
 pub async fn authenticate_user(
     domain: &str,
     username: &str,
     password: &str,
 ) -> Result<String, AuthError> {
-    let client = Client::new();
+    // Reuse a static Client instance
+    static CLIENT: Lazy<Client> = Lazy::new(|| Client::new());
+
     let path = "/otcs/cs.exe/api/v1/auth";
     let auth_url = format!("https://{}{}", domain, path);
-    let auth_url = Url::parse(&auth_url).unwrap();
+    let auth_url = Url::parse(&auth_url)?;
 
-    let mut data = std::collections::HashMap::new();
-    data.insert("username", username);
-    data.insert("password", password);
+    // Serialize request data using serde
+    let request_data = AuthRequest {
+        username: username.to_string(),
+        password: password.to_string(),
+    };
 
-    // Encode the data as x-www-form-urlencoded
-    let encoded_data = serde_urlencoded::to_string(&data).expect("Failed to encode data");
+    let encoded_data = serde_urlencoded::to_string(&request_data)?;
 
-    println!("Encoded data: {}", encoded_data);
+    //println!("Encoded data: {}", encoded_data);
 
-    let response = client
+    let response = CLIENT
         .post(auth_url)
         .header(
             reqwest::header::CONTENT_TYPE,
@@ -34,8 +44,7 @@ pub async fn authenticate_user(
         )
         .body(encoded_data)
         .send()
-        .await
-        .expect("Failed to execute request.");
+        .await?;
 
     println!("{:?}", response);
 
@@ -47,9 +56,6 @@ pub async fn authenticate_user(
         .text()
         .await
         .unwrap_or_else(|_| String::from("Failed to read response body"));
-
-    println!("Response Status: {:?}", status_code);
-    println!("Response Body: {:?}", response_text);
 
     match status_code {
         StatusCode::OK => {
