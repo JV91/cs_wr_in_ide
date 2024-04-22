@@ -26,5 +26,4 @@ mod tests {
         assert_eq!(config.node_id, "test_node_id");
     }
 
-    // You can add more test functions here to cover other scenarios
 }
