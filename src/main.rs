@@ -2,15 +2,16 @@
 mod auth;
 mod error;
 mod file;
+mod config;
+mod tests;
 
-use std::env;
+use std::{env, process};
 use std::fs::File;
 use std::io::Write;
 use std::error::Error;
 use std::fmt;
 use std::process::{Command, ExitStatus};
 
-use dotenv::dotenv;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, Url};
 use reqwest::multipart::Form;
@@ -23,6 +24,7 @@ use tokio;
 use auth::authenticate_user;
 use file::{create_new_file, open_file_in_vscode, read_local_node_content};
 use error::{AuthError, CustomError, handle_error_status};
+use config::Config;
 
 async fn get_node_content(
     domain: &str,
@@ -112,22 +114,23 @@ async fn add_node_version(
 
 #[tokio::main]
 async fn main() {
-    // Load environment variables from .env file
-    dotenv().ok();
+    // Load configuration
+    let config = match Config::from_env() {
+        Ok(config) => config,
+        Err(err) => {
+            eprintln!("Failed to load configuration: {}", err);
+            process::exit(1);
+        }
+    };
 
-    let domain = env::var("DOMAIN").expect("Missing DOMAIN environment variable");
-    let username = env::var("USER").expect("Missing USERNAME environment variable");
-    let password = env::var("PASSWORD").expect("Missing PASSWORD environment variable");
-    let node_id = env::var("NODE_ID").expect("Missing NODE_ID environment variable");
-
-    println!("\nUsername: {}", username);
+    println!("\nUsername: {}", config.username);
     //println!("Password: {}", password);
-    println!("Node ID: {}", node_id);
+    println!("Node ID: {}", config.node_id);
 
     // Check if local file exists
     if let Ok(local_content) = read_local_node_content() {
         // Authenticate user and get the auth token
-        let auth_token = match authenticate_user(&domain, &username, &password).await {
+        let auth_token = match authenticate_user(&config.domain, &config.username, &config.password).await {
             Ok(token) => token,
             Err(err) => {
                 eprintln!("Authentication failed: {}", err);
@@ -136,7 +139,7 @@ async fn main() {
         };
 
         // Get node content from the API
-        let api_node_content = match get_node_content(&domain, &node_id, &auth_token).await {
+        let api_node_content = match get_node_content(&config.domain, &config.node_id, &auth_token).await {
             Ok(content) => content,
             Err(err) => {
                 eprintln!("Failed to fetch node content: {}", err);
@@ -161,7 +164,7 @@ async fn main() {
             }
 
             // Call add_node_version with content from file
-            match add_node_version(domain, node_id, auth_token, local_content).await {
+            match add_node_version(config.domain, config.node_id, auth_token, local_content).await {
                 Ok(_) => println!("Node version added successfully."),
                 Err(err) => eprintln!("Failed to add node version: {}\n", err),
             }
@@ -170,8 +173,8 @@ async fn main() {
         }
     } else {
         // Create cs.groovy file with content from API
-        match authenticate_user(&domain, &username, &password).await {
-            Ok(auth_token) => match get_node_content(&domain, &node_id, &auth_token).await {
+        match authenticate_user(&config.domain, &config.username, &config.password).await {
+            Ok(auth_token) => match get_node_content(&config.domain, &config.node_id, &auth_token).await {
                 Ok(api_node_content) => match create_new_file("C:\\Users\\jan.vais\\Desktop\\codebase\\!rust\\cs_wr_in_vscode\\webreport.vrw", &api_node_content) {
                     Ok(_) => println!("cs.groovy file created successfully."),
                     Err(err) => eprintln!("Failed to create webreport.js file: {}", err),
