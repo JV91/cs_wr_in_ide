@@ -1,16 +1,22 @@
-use std::fs::File;
-use std::io::Write;
+use std::fs::{self, File};
+use std::io::{self, ErrorKind, Write};
 use std::process::Command;
 use crate::error::CustomError;
 
 pub fn read_local_node_content() -> Result<String, CustomError> {
-    match std::fs::read_to_string("C:\\Users\\jan.vais\\Desktop\\codebase\\!rust\\cs_wr_in_vscode\\webreport.vrw") {
+    // Get the current directory
+    let mut current_dir = std::env::current_dir().map_err(|err| CustomError::Io(err.into()))?;
+
+    // Append the relative path to the file
+    current_dir.push("webreport.vrw");
+
+    match fs::read_to_string(current_dir) {
         Ok(content) => Ok(content),
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+        Err(err) if err.kind() == io::ErrorKind::NotFound => {
             // File not found, create new file
             Ok(String::new()) // Return an empty string for the new file
         }
-        Err(err) => Err(err.into()),
+        Err(err) => Err(CustomError::Io(err.into())),
     }
 }
 

@@ -3,6 +3,7 @@ use reqwest::StatusCode;
 use reqwest::Error as ReqwestError;
 use std::error::Error;
 use std::fmt;
+use std::io;
 
 #[derive(Deserialize)]
 struct AuthResponse {
@@ -57,12 +58,12 @@ impl From<reqwest::Error> for AuthError {
 }
 
 pub enum CustomError {
-    Io(std::io::Error),
+    Io(io::Error),
     Reqwest(ReqwestError),
 }
 
-impl From<std::io::Error> for CustomError {
-    fn from(error: std::io::Error) -> Self {
+impl From<io::Error> for CustomError {
+    fn from(error: io::Error) -> Self {
         CustomError::Io(error)
     }
 }

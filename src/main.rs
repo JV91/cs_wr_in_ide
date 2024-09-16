@@ -6,20 +6,24 @@ mod config;
 mod tests;
 
 use std::{env, process};
-use std::fs::File;
-use std::io::Write;
+use std::io::{Read, Write, Error as IOError};
 use std::error::Error;
 use std::fmt;
 use std::process::{Command, ExitStatus};
+use std::path::PathBuf;
+use std::fs::File;
 
+use reqwest::Body;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, Url};
-use reqwest::multipart::Form;
+use reqwest::multipart::{Form, Part};
 use reqwest::StatusCode;
 use reqwest::Error as ReqwestError;
+use reqwest::Response;
 use serde::Deserialize;
 use serde_urlencoded;
-use tokio;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+//use tokio::fs::File;
 
 use auth::authenticate_user;
 use file::{create_new_file, open_file_in_vscode, read_local_node_content};
@@ -58,50 +62,29 @@ async fn add_node_version(
     println!("node_version_url: {}", node_version_url);
 
     let mut headers = HeaderMap::new();
-        headers.insert("otcsticket", HeaderValue::from_str(&auth_token).unwrap());
-        headers.insert(
-            reqwest::header::CONTENT_TYPE,
-            HeaderValue::from_static("multipart/form-data"),
-        );
+    headers.insert("otcsticket", HeaderValue::from_str(&auth_token).unwrap());
+    headers.insert(
+        reqwest::header::CONTENT_TYPE,
+        HeaderValue::from_static("multipart/form-data"),
+    );
 
-    //let temp_file_content = String::from("{}");
-    //let body_content = String::from("{\"file\": \"{}\", \"body\": \"{}\"}");
+    // Open the file
+    let file_path = "C:\\Users\\jan.vais\\Desktop\\codebase\\!rust\\cs_wr_in_vscode\\webreport.vrw";
+    let mut file_vec_content = Vec::new();
+    //let mut file = File::open(file_path);
+    //file?.read_to_end(&mut file_vec_content);
 
-    let multipart_form = Form::new()
-        .text("file", file_content)
-        .text("body", "{}");
-
-    println!("\nmultipart_form: {:?}\n", multipart_form);
-
-    //let mut body_data = std::collections::HashMap::new();
-    //    body_data.insert("file", &temp_file_content);
-    //    body_data.insert("body", &body_content);
-        //body_data.insert("description", "desc".to_string());
-        //body_data.insert("add_major_version", "true".to_string());
-        //body_data.insert("external_create_date", "".to_string());
-        //body_data.insert("external_modify_date", "".to_string());
-        //body_data.insert("external_source", "".to_string());
-        //body_data.insert("external_identity", "".to_string());
-        //body_data.insert("external_identity_type", "".to_string());
-
-    //println!("body_data: {:?}", body_data);
-
-    // Encode the data as x-www-form-urlencoded
-    //let encoded_data = serde_urlencoded::to_string(&body_data).expect("Failed to encode data");
-    //println!("\nEncoded data: {}", encoded_data);
-
-    // Encode binary data as base64 string
-    //let base64_encoded = general_purpose::STANDARD.encode(&body_content);
-    //println!("\nBase64 encoded data: {}", base64_encoded);
+    // Create a multipart form data
+    let form = Form::new().part("file", Part::bytes(file_vec_content).file_name("reportview-rust"));
 
     let response = client
         .post(node_version_url)
         .headers(headers)
-        .multipart(multipart_form)
+        .multipart(form)
         .send()
         .await?;
 
-    //println!("\nresponse: {:?}", response);
+    println!("response: {:?}", response);
 
     if response.status().is_success() {
         println!("Node version added successfully");
@@ -124,8 +107,10 @@ async fn main() {
     };
 
     println!("\nUsername: {}", config.username);
-    //println!("Password: {}", password);
     println!("Node ID: {}", config.node_id);
+
+    // TODO! read node info - data:name and data:type_name
+    // then pass it to parameters - dynamic node name.
 
     // Check if local file exists
     if let Ok(local_content) = read_local_node_content() {
