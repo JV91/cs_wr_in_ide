@@ -69,7 +69,7 @@ async fn add_node_version(
     );
 
     // Open the file
-    let file_path = "C:\\Users\\jan.vais\\Desktop\\codebase\\!rust\\cs_wr_in_vscode\\webreport.vrw";
+    let file_path = "C:\\Users\\jan.vais\\Desktop\\codebase\\!rust\\CsToIDE\\webreport.vrw";
     let mut file_vec_content = Vec::new();
     //let mut file = File::open(file_path);
     //file?.read_to_end(&mut file_vec_content);
@@ -137,7 +137,7 @@ async fn main() {
         // TODO! - switch hard-typed file name to actual file name in content server!
         // Compare API content with webreport.vrw file content
         if local_content != api_node_content {
-            match create_new_file("C:\\Users\\jan.vais\\Desktop\\codebase\\!rust\\cs_wr_in_vscode\\webreport.vrw", &api_node_content) {
+            match create_new_file("C:\\Users\\jan.vais\\Desktop\\codebase\\!rust\\CsToIDE\\webreport.vrw", &api_node_content) {
                 Ok(_) => {
                     println!("Node updated successfully.");
                     // Open the updated file in VS Code
@@ -160,7 +160,7 @@ async fn main() {
         // Create cs.groovy file with content from API
         match authenticate_user(&config.domain, &config.username, &config.password).await {
             Ok(auth_token) => match get_node_content(&config.domain, &config.node_id, &auth_token).await {
-                Ok(api_node_content) => match create_new_file("C:\\Users\\jan.vais\\Desktop\\codebase\\!rust\\cs_wr_in_vscode\\webreport.vrw", &api_node_content) {
+                Ok(api_node_content) => match create_new_file("C:\\Users\\jan.vais\\Desktop\\codebase\\!rust\\CsToIDE\\webreport.vrw", &api_node_content) {
                     Ok(_) => println!("cs.groovy file created successfully."),
                     Err(err) => eprintln!("Failed to create webreport.js file: {}", err),
                 },

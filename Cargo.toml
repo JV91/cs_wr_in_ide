@@ -1,5 +1,5 @@
 [package]
-name = "cs_wr_in_vscode"
+name = "CsToIDE"
 version = "0.1.0"
 edition = "2021"
 
