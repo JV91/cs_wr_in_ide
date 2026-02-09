@@ -16,7 +16,7 @@ Before running the application, ensure you have:
 1. **Clone the Repository**
 
    ```bash
-   git clone git@gitlab.ixtent.com:IXT/IXT_ContentServer/Ixtent.ContentServer.CsToIDE.git
+   git clone https://github.com/JV91/cs_wr_in_ide.git
    cd your-project-directory
    ```
 
